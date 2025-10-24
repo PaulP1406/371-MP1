@@ -14,10 +14,29 @@ while True:
 
     request = connectionSocket.recv(1024).decode()
     print("Request received:\n", request)
+    
+    # Take out the HTTP version
+    HTTPVersion = request.split('\n')[0].split()[2]
+    print("HTTP Version:", HTTPVersion)
+
+    # Check for the 505 HTTP version not supported
+    # Handle the 505 case (unsupported HTTP version)
+    # Test using echo "GET /test.html HTTP/2.0`r`nHost: localhost`r`nConnection: close`r`n`r`n" | ncat localhost 12000
+    if HTTPVersion not in ["HTTP/1.0", "HTTP/1.1"]:
+        response = (
+            "HTTP/1.1 505 HTTP Version Not Supported\r\n"
+            "Content-Type: text/html\r\n"
+            "\r\n"
+            "<html><body><h1>505 HTTP Version Not Supported</h1>"
+            "<p>The server only supports HTTP/1.0 and HTTP/1.1.</p>"
+            "</body></html>"
+        ).encode()
+        connectionSocket.send(response)
+        connectionSocket.close()
+        continue
 
     # Handle the 200 case
     fileName = request.split('\n')[0].split()[1].strip('/')
-
     # Extract "If-Modified-Since" header if present
     if_modified_since = None
     for line in request.split('\n'):
