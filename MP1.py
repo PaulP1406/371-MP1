@@ -19,7 +19,6 @@ while True:
     HTTPVersion = request.split('\n')[0].split()[2]
     print("HTTP Version:", HTTPVersion)
 
-    # Check for the 505 HTTP version not supported
     # Handle the 505 case (unsupported HTTP version)
     # Test using echo "GET /test.html HTTP/2.0`r`nHost: localhost`r`nConnection: close`r`n`r`n" | ncat localhost 12000
     if HTTPVersion not in ["HTTP/1.0", "HTTP/1.1"]:
@@ -52,7 +51,6 @@ while True:
                 if_modified_since = None
 
     if os.path.exists(fileName) and os.access(fileName, os.R_OK):
-        # Get the file's last modified time (timezone-aware UTC)
         file_mtime = datetime.fromtimestamp(os.path.getmtime(fileName), tz=timezone.utc)
 
         # Handle the 304 case (client has cached version)
