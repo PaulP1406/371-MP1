@@ -16,7 +16,6 @@ MAX_FRAMES_PER_REQUEST = 100
 
 # HOL blocking section
 class Frame:
-    """Represents a frame in the multiplexing system."""
     def __init__(self, frame_id, request_id, data, is_last=False):
         self.frame_id = frame_id
         self.request_id = request_id
@@ -25,7 +24,6 @@ class Frame:
         self.timestamp = time.time()
 
 class FrameMultiplexer:
-    """Handles frame-based multiplexing to avoid HOL blocking."""
     def __init__(self):
         self.frame_queue = queue.PriorityQueue()
         self.active_requests = {}  
@@ -34,7 +32,6 @@ class FrameMultiplexer:
         self.next_request_id = 0
         
     def add_request(self, client_conn, client_addr, request_data):
-        """Add a new request and split it into frames."""
         with self.frame_lock:
             request_id = self.next_request_id
             self.next_request_id += 1
@@ -48,11 +45,10 @@ class FrameMultiplexer:
             priority = (request_id, i)
             self.frame_queue.put((priority, frame))
             
-        print(f"[FrameMultiplexer] Request {request_id} split into {len(frames)} frames")
+        print(f"Request {request_id} split into {len(frames)} frames")
         return request_id
     
     def _split_into_frames(self, request_id, data):
-        """Split data into frames of FRAME_SIZE."""
         frames = []
         data_bytes = data.encode() if isinstance(data, str) else data
         
@@ -65,7 +61,6 @@ class FrameMultiplexer:
         return frames
     
     def process_frames(self):
-        """Process frames from the queue and forward to web server."""
         while True:
             try:
                 priority, frame = self.frame_queue.get(timeout=1)
@@ -79,10 +74,9 @@ class FrameMultiplexer:
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"[FrameMultiplexer] Error processing frame: {e}")
+                print(f"Error processing frame: {e}")
     
     def _forward_frame_to_server(self, frame):
-        """Forward a single frame to the web server."""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as web_socket:
                 web_socket.connect((WEB_SERVER_HOST, WEB_SERVER_PORT))
@@ -97,11 +91,10 @@ class FrameMultiplexer:
                 return response_frames
                 
         except Exception as e:
-            print(f"[FrameMultiplexer] Error forwarding frame {frame.frame_id}: {e}")
+            print(f"Error forwarding frame {frame.frame_id}: {e}")
             return [b"HTTP/1.1 500 Internal Server Error\r\n\r\n"]
     
     def _reassemble_and_send_response(self, request_id, response_frames):
-        """Reassemble response frames and send to client."""
         try:
             if request_id not in self.active_requests:
                 return
@@ -110,13 +103,13 @@ class FrameMultiplexer:
             full_response = b"".join(response_frames)
             
             client_conn.sendall(full_response)
-            print(f"[FrameMultiplexer] Response sent to {client_addr} for request {request_id}")
+            print(f"Response sent to {client_addr} for request {request_id}")
             del self.active_requests[request_id]
             del self.request_frames[request_id]
             client_conn.close()
             
         except Exception as e:
-            print(f"[FrameMultiplexer] Error sending response for request {request_id}: {e}")
+            print(f"Error sending response for request {request_id}: {e}")
 frame_multiplexer = FrameMultiplexer()
 
 frame_processor = threading.Thread(target=frame_multiplexer.process_frames)
@@ -196,7 +189,6 @@ print(f"Proxy server listening on port {PROXY_PORT} with frame-based multiplexin
 
 
 def handle_client_frame_based(client_conn, client_addr):
-    """Handle client connection using frame-based multiplexing."""
     print(f"\n[+] New connection from {client_addr}")
     time.sleep(5)
     
