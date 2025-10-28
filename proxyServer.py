@@ -1,5 +1,7 @@
 import socket
+import threading
 from urllib.parse import urlparse
+import time
 
 # Proxy configuration
 PROXY_PORT = 12001  # Proxy server port
@@ -12,13 +14,12 @@ WEB_SERVER_PORT = 12000  # Must match your webserver.py port
 proxy_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 proxy_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 proxy_server.bind(('', PROXY_PORT))
-proxy_server.listen(1)
+proxy_server.listen(5)  # backlog increased for concurrency
 print(f"Proxy server listening on port {PROXY_PORT} ...")
+
 
 def forward_request(request: str) -> bytes:
     """Forward the HTTP request to the web server and return its response."""
-    print("Forwarding request to local web server...")
-
     # --- Fix the request line if it includes the full URL ---
     lines = request.split('\r\n')
     if lines:
@@ -48,16 +49,16 @@ def forward_request(request: str) -> bytes:
             response_chunks.append(chunk)
         return b"".join(response_chunks)
 
-# --- Main Proxy Loop ---
-while True:
-    client_conn, client_addr = proxy_server.accept()
-    print(f"\nConnection from {client_addr}")
 
+def handle_client(client_conn, client_addr):
+    """Handle one client connection in a separate thread."""
+    print(f"\n[+] New connection from {client_addr}")
+    time.sleep(5)
     try:
         request_bytes = client_conn.recv(4096)
         if not request_bytes:
             client_conn.close()
-            continue
+            return
 
         # Decode safely
         try:
@@ -65,12 +66,28 @@ while True:
         except UnicodeDecodeError:
             request = request_bytes.decode("latin-1")
 
-        print("Request line:", request.splitlines()[0] if request else "")
+        print(f"[{client_addr}] Request line: {request.splitlines()[0] if request else ''}")
+
+        # Forward to web server and get response
         response = forward_request(request)
 
-        # Send the web server's response back to the client
+        # Send response back to client
         client_conn.sendall(response)
+        print(f"[{client_addr}] Response relayed successfully.")
     except Exception as e:
-        print("Error:", e)
+        print(f"[!] Error handling {client_addr}: {e}")
     finally:
         client_conn.close()
+        print(f"[-] Connection closed: {client_addr}")
+
+
+# --- Main Proxy Loop (Multithreaded) ---
+while True:
+    client_conn, client_addr = proxy_server.accept()
+
+    # Create and start a new thread for each client
+    thread = threading.Thread(target=handle_client, args=(client_conn, client_addr))
+    thread.daemon = True  # ensures threads exit when main program exits
+    thread.start()
+
+    print(f"[Active Threads: {threading.active_count() - 1}]")
